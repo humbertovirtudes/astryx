@@ -3,6 +3,7 @@
 'use client';
 
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import type {AnchorHTMLAttributes} from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type {StyleXStyles} from '@stylexjs/stylex';
 import {usePathname, useRouter} from 'next/navigation';
@@ -15,6 +16,7 @@ import {Theme} from '@astryxdesign/core/theme';
 import type {DefinedTheme} from '@astryxdesign/core/theme';
 import {Button} from '@astryxdesign/core/Button';
 import {Link} from '@astryxdesign/core/Link';
+import {LinkProvider} from '@astryxdesign/core/Link';
 import {SelectableCard} from '@astryxdesign/core/SelectableCard';
 import {Selector} from '@astryxdesign/core/Selector';
 import {Divider} from '@astryxdesign/core/Divider';
@@ -87,6 +89,32 @@ function packageNameToSlug(packageName: string): string {
 // enough horizontal room for the themed preview's product grid.
 const SIDEBAR_QUERY = '(max-width: 900px)';
 const SIDEBAR_BREAKPOINT = `@media ${SIDEBAR_QUERY}`;
+
+// Inert anchor used by the showcase preview — every Astryx component that
+// resolves a link (Link, Button, Item, Breadcrumb, ClickableCard) goes
+// through useLinkComponent, so wrapping the showcase in a LinkProvider
+// with this component as the default swaps every nav-style click for a
+// preventDefault. The href is preserved on the rendered <a> so users can
+// still see the URL on hover, and so the rendered DOM matches what the
+// theme-showcase template would produce in a real app — we just stop the
+// docsite page from yanking back to the top when someone tries the demo
+// "Add to cart" / "Sign in" / "See all" buttons. Outside of this provider
+// (the rest of the docsite, the playground, the published CLI template)
+// links keep their normal behavior.
+function PreviewAnchor({
+  onClick,
+  ...props
+}: AnchorHTMLAttributes<HTMLAnchorElement>) {
+  return (
+    <a
+      {...props}
+      onClick={e => {
+        e.preventDefault();
+        onClick?.(e);
+      }}
+    />
+  );
+}
 
 // Fixed sidebar width — compact enough that the right pane gets the
 // lion's share of horizontal space, wide enough to fit the longest
@@ -958,17 +986,24 @@ export function ThemePackagePage({packageName, theme}: ThemePackagePageProps) {
             the selected theme, wrapped in a bordered, rounded card so
             it reads as a contained app surface against the docsite
             chrome. overflow:hidden (showcaseCard) clips the template's
-            own backgrounds (top nav, sections) to the card's radius. */}
+            own backgrounds (top nav, sections) to the card's radius.
+            LinkProvider swaps every linkable component (Link, Button,
+            Item, etc.) for an inert anchor that preventDefaults — the
+            theme-showcase template uses href="#" placeholders for its
+            demo nav/CTAs, and without the override those clicks scroll
+            the docsite page to the top of the document. */}
         <div {...stylex.props(styles.showcaseBlock)}>
           <Card padding={0} xstyle={styles.showcaseCard}>
             <Theme theme={selectedTheme} mode={mode}>
-              {/* Bespoke per-theme content (e.g. Matcha's café menu); falls
-                  back to the template's neutral defaults when undefined. */}
-              <ThemeShowcaseStore
-                {...getThemeShowcaseContent(
-                  selectedPkgName.replace('@astryxdesign/theme-', ''),
-                )}
-              />
+              <LinkProvider component={PreviewAnchor}>
+                {/* Bespoke per-theme content (e.g. Matcha's café menu); falls
+                    back to the template's neutral defaults when undefined. */}
+                <ThemeShowcaseStore
+                  {...getThemeShowcaseContent(
+                    selectedPkgName.replace('@astryxdesign/theme-', ''),
+                  )}
+                />
+              </LinkProvider>
             </Theme>
           </Card>
         </div>
